@@ -1,3 +1,7 @@
+   
+   
+   
+   
    1. GitLab Pipeline (Stages : init, validate, plan, apply ) is provisioning eks cluster in aws
    2. Connect to cluster (after provisioning), update kubeconfig, authorize connection to cluster 
    
