@@ -2,16 +2,16 @@
    
    
    
-   1. GitLab Pipeline (Stages : init, validate, plan, apply ) is provisioning eks cluster in aws
-   2. Connect to cluster (after provisioning), update kubeconfig, authorize connection to cluster 
+1. GitLab Pipeline (Stages : init, validate, plan, apply ) is provisioning eks cluster in aws
+2. Connect to cluster (after provisioning), update kubeconfig, authorize connection to cluster 
    
     - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
     - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
     - aws configure set region $AWS_DEFAULT_REGION   
     - aws eks --region eu-central-1 update-kubeconfig --name btEKS
-  2.5 Install amazon ebs csi driver  (to give Amazon EKS permission to manage ebs volumes for persistent storage) necessary for use of the storage capabilities of prometheus and grafana
+2.5 Install amazon ebs csi driver  (to give Amazon EKS permission to manage ebs volumes for persistent storage) necessary for use of the storage capabilities of prometheus and grafana
     - 
-  3. manually install prometheus and grafana instances on eks cluster (using helm)
+3. manually install prometheus and grafana instances on eks cluster (using helm)
 
     - kubectl create namespace prometheus
     - helm repo add prometheus-community httpsprometheus-community.github.iohelm-charts
