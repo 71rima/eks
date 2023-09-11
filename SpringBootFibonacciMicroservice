@@ -1,0 +1,31 @@
+@Service
+public class FibonacciCalculator {
+
+    public Long calculateFibonacci(Long nthNumber) { (*@\label{calcFib}@*)
+        if(nthNumber == null) {
+            return -1L;
+        }
+        return getFibonacciNumberAt(nthNumber);
+    }
+
+    private Long getFibonacciNumberAt(Long nthNumber) { (*@\label{getFib}@*)
+        if (nthNumber < 2) {
+            return nthNumber;
+        } else
+            return getFibonacciNumberAt(nthNumber - 1) + getFibonacciNumberAt(nthNumber - 2);
+    }
+}
+
+/*rest controller */
+@RestController
+@AllArgsConstructor
+public class FibonacciController {
+
+    private final FibonacciCalculator fibonacciCalculator;
+
+    @GetMapping("/fibonacci/{nthNumber}") (*@\label{APIpath}@*)
+    ResponseEntity<Long> getFibonacci(@PathVariable Long nthNumber) {
+        return ResponseEntity.ok(fibonacciCalculator.calculateFibonacci(nthNumber)); (*@\label{callFunction}@*)
+    }
+
+}
