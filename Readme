@@ -1,0 +1,23 @@
+   1. GitLab Pipeline (Stages : init, validate, plan, apply ) is provisioning eks cluster in aws
+   2. Connect to cluster (after provisioning), update kubeconfig, authorize connection to cluster 
+   
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION   
+    - aws eks --region eu-central-1 update-kubeconfig --name btEKS
+  2.5 Install amazon ebs csi driver  (to give Amazon EKS permission to manage ebs volumes for persistent storage) necessary for use of the storage capabilities of prometheus and grafana
+    - 
+  3. manually install prometheus and grafana instances on eks cluster (using helm)
+
+    - kubectl create namespace prometheus
+    - helm repo add prometheus-community httpsprometheus-community.github.iohelm-charts
+    - helm install prometheus prometheus-communityprometheus --namespace prometheus --set alertmanager.persistentVolume.storageClass=gp2 --set server.persistentVolume.storageClass=gp2
+    - kubectl get all -n prometheus #
+    - kubectl port-forward -n prometheus deployprometheus-server 80809090 #Navigate to httplocalhost8080targets
+    - kubectl create namespace grafana
+    - helm install grafana grafanagrafana --namespace grafana --set persistence.storageClassName=gp2 --set persistence.enabled=true --set adminPassword='EKS!sAWSome' --values ${HOME}environmentgrafanagrafana.yaml --set service.type=LoadBalancer
+    - kubectl get all -n grafana
+
+    4. Retrieve the ip adress of the Load Balancer to access service
+    - export ELB=$(kubectl get svc -n grafana grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+    - echo http$ELB
