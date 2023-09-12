@@ -1,56 +1,83 @@
-image
-  name registry.gitlab.comgitlab-orgterraform-imagesstablelatest
-  entrypoint
-    - 'usrbinenv'
-    - 'PATH=usrlocalsbinusrlocalbinusrsbinusrbinsbinbin'
+image:
+  name: registry.gitlab.com/gitlab-org/terraform-images/stable:latest
+  entrypoint:
+    - '/usr/bin/env'
+    - 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
     - 'AWS_ACCESS_KEY_ID=AKIAV6SP633MR3ARM7FE' 
     - 'AWS_SECRET_ACCESS_KEY=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' 
 
-variables
-  TF_ROOT $CI_PROJECT_DIRterraform
+variables:
+  TF_ROOT: $CI_PROJECT_DIR/terraform
 
-before_script
+before_script:
   - cd ${TF_ROOT}
   - rm -rf .terraform
   - terraform --version
   - terraform init 
   
-
-##add1, add2 manuell auf client ausgefuehrt
-stages
+stages:
   - validate
   - plan
   - build
+  - add
   - destroy
 
-validate
-  stage validate
-  script
+validate:
+  stage: validate
+  script:
     - terraform validate
 
-plan
-  stage plan
-  script
+plan:
+  stage: plan
+  script:
     - terraform plan -input=false -out=tf.plan
-  dependencies 
+  dependencies: 
     - validate
-  artifacts
-    paths
-      - ${TF_ROOT}tf.plan
+  artifacts:
+    paths:
+      - ${TF_ROOT}/tf.plan
 
-apply
-  stage build
-  script
+apply:
+  stage: build
+  script:
     - terraform apply -input=false tf.plan
-
-  dependencies
+  dependencies:
     - plan
-  when manual
+  when: manual
 
-destroy
-  stage destroy
-  script
-    - terraform destroy -auto-approve
-  dependencies
+##add: manuell in client
+addPrometheusGrafana:
+  stage: add
+  image: dtzar/helm-kubectl
+  before_script:
+    - echo
+    - apk add --no-cache curl jq python3 py3-pip
+    - pip install awscli
+    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
+    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
+    - aws configure set region $AWS_DEFAULT_REGION   
+  script:
+  ##kubeconfig updaten + anderes image mit helm und kubectl
+    - aws --version
+    - aws eks --region "eu-central-1" update-kubeconfig --name "btEKS"
+    - kubectl create namespace prometheus
+    - helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    - helm install prometheus prometheus-community/prometheus --namespace prometheus --set alertmanager.persistentVolume.storageClass="gp2" --set server.persistentVolume.storageClass="gp2"
+    - kubectl get all -n prometheus 
+    - kubectl port-forward -n prometheus deploy/prometheus-server 8080:9090 #Navigate to http://localhost:8080/targets/
+    - kubectl create namespace grafana
+    - helm install grafana grafana/grafana --namespace grafana --set persistence.storageClassName="gp2" --set persistence.enabled=true --set adminPassword='EKS!sAWSome' --values ${HOME}/environment/grafana/grafana.yaml --set service.type=LoadBalancer
+    - kubectl get all -n grafana
+    - export ELB=$(kubectl get svc -n grafana grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+    - echo "http://$ELB"
+  dependencies:
     - apply
-  when manual
+  when: manual
+
+destroy:
+  stage: destroy
+  script:
+    - terraform destroy -auto-approve
+  dependencies:
+    - apply
+  when: manual

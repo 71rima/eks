@@ -1,26 +1,85 @@
-0.1 Grant GitLab (CI/CD) permissions (IAM) to access AWS EKS : Configure OIDC (e.g. https://oblcc.com/blog/configure-openid-connect-for-gitlab-and-aws/
-)
-0.2
+# AWS EKS Cluster with kubernetes autoscaling (HPA, VPA, HPA + CA, VPA + CA) on a SpringBoot Test Deployment - Loadtesting 
+
+## Technologiestack
+AWS (EKS, IAM, S3, EBS ..), Terraform + GitLab CI (IaC), Kubernetes (kubectl), Helm, Docker, Springboot, Grafana, Prometheus, k6 (Lasttestwerkzeug), InfluxDB
+
+## Motivation
+- Kubernetes Autoscalingmethoden anhand ihrer Skalierbarkeit und Leistungsfähigkeit zu vergleichen
+- Vergleich erfolgt unter realistischen Lastszenarien für Cloud-Anwendungen (Spike, Thundering Herd, Increase Decrease)  (siehe Testskript Verzeichnis)
+- Probleme der Skalierungsmethoden anhand der definierten Szenarien zu formalisieren und visualisieren (siehe Diagramme Verzeichnis)
+- Skalierungsmethoden  auf Amazon Elastic Kubernetes Service (Amazon EKS) implementiert und skalieren einen REST-basierten Microservice (berechnet rekursiv Fibonacci-Zahlen und erzeugt Last)
+
+## Konzeption und Architektur 
+![Architektur](architekturEKS.png)
+### Terraform Dateien (siehe TerraformEKScluster)
+- backend.tf definiert  
+  - AWS S3 Bucket (speichert Terraform State), Provider, Quelle,  Versionen 
+-  eks.tf definiert
+   - EC2-Instanz (T2.medium), Node-Anzahl, Rechte (Cluster, AWS-Konto)
+-  variables.tf definiert
+   - AccountID, Cluster-Namen etc.
+- vpc.tf definiert
+   - Subnetze, Availability Zones, Tags (erlauben Datenverkehr von außerhalb)
+- alb.tf
+   - Application Load Balancer (notwendig für Zugriff auf das Cluster von außerhalb) 
+
+### Testanwendung
+ 
+- RESTbasierter Microservice (siehe Code in SpringBootFibonacciMicroservice)
+- berechnet rekursiv Fibonacci
+- Beispielanwendung, um Skalierungsmethoden zu testen
+- Pod-Template: Docker Container (https://hub.docker.com/r/globdo/fibonacci/tags)(Port 8090) 
+- REST-API mit einem Pfad (baseURL/fibonacci/{n}) berechnet die n-te Fibonacci Zahl
+
+### Monitoring
+- Cloud-Umgebung
+  - Prometheus
+  - Grafana
+Metriken: &rarr; Anzahl an Pods, CPU (Auslastung und Verbrauch auf Pod-/Node-/Cluster-Ebene)
+- Client-Umgebung (End User Experience Monitoring (EUEM))
+  - Grafana (Visualisierung)
+  - k6 (schreibt Daten in InfluxDB)
+  - InfluxDB (Speichern)
+Metriken: &rarr; Anfragen pro Sekunde, Virtueller User, Antwortzeit
+
+### Versuchsreihen
+  1. EKS-Cluster ohne Skalierung
+  2. EKS-Cluster mit HPA bzw. Basis EKS-Cluster mit VPA
+  3. EKS-Cluster mit HPA und CA bzw. Basis EKS-Cluster mit VPA und CA
+
+### Lasttest, Lastszenarien (siehe Testskript Verzeichnis)
+  1. Increase Decrease (gleichmäßiger Anstieg/Abstieg der Last, andauernder Höhepunkt &rarr; typische Lastverteilung Tag-Nacht-Zyklus)
+  2. Spike (plötzlich auftretende/abklingende Lastspitze &rarr; Slashdot-Effekt)
+  3. Thundering Herd (direkt auftretende extreme Last (kein RampUp/Down) &rarr; z.B. Stromausfall, Ausfall einer Netzwerkkomponente)
+
+
+
+### PreSetup:
+0.1 Grant GitLab (CI/CD) permissions (IAM) to access AWS EKS : Configure OIDC (e.g. https://oblcc.com/blog/configure-openid-connect-for-gitlab-and-aws/)
+
    
    
-   
+### Provision Basic EKS Cluster with Grafana and Prometheus Instances   
 1. GitLab Pipeline (Stages : init, validate, plan, apply ) is provisioning eks cluster in aws
 2. Connect to cluster (after provisioning), update kubeconfig, authorize connection to cluster 
-   
+```
     - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
     - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
     - aws configure set region $AWS_DEFAULT_REGION   
     - aws eks --region eu-central-1 update-kubeconfig --name btEKS
-2.5 Install amazon ebs csi driver  (to give Amazon EKS permission to manage ebs volumes for persistent storage) necessary for use of the storage capabilities of prometheus and grafana
-    - 
-3. manually install prometheus and grafana instances on eks cluster (using helm)
+```
 
+3. Install amazon ebs csi driver  (to give Amazon EKS permission to manage ebs volumes for persistent storage) necessary for use of the storage capabilities of prometheus and grafana
+
+4. manually install prometheus and grafana instances on eks cluster (using helm)
+```
     - kubectl create namespace prometheus
     - helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
     - helm install prometheus prometheus-community/prometheus --namespace prometheus --set alertmanager.persistentVolume.storageClass="gp2" --set server.persistentVolume.storageClass="gp2"
     - kubectl get all -n prometheus #
     - kubectl port-forward -n prometheus deploy/prometheus-server 8080:9090 #Navigate to http://localhost:8080/targets/
-
+```
+```
     - kubectl create namespace grafana
     - helm search hub grafana
     - helm repo add grafana https://grafana.github.io/helm-charts
@@ -28,16 +87,53 @@
     - helm install my-release grafana/grafana --namespace grafana --set persistence.storageClassName="gp2" --set persistence.enabled=true --set adminPassword='EKS' --values grafana.yaml --set service.type=LoadBalancer
     - kubectl get all -n grafana
     - export ELB=$(kubectl get svc -n grafana grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-    - echo "http://$ELB" #URL of Grafana Instance that is hosted on ELB IP
-
-    4. Retrieve the ip adress of the Load Balancer to access grafana
+    - echo "http://$ELB" #URL of Grafana Instance (IP of the ELB)
+```
+5. Retrieve the ip adress of the Load Balancer to access grafana
+```
     - export ELB=$(kubectl get svc -n grafana grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
     - echo http$ELB
+```
+### Provision Fibonacci-Deployment and setup k6 Scripts for Load Testing
 
+1. Apply deployment.yaml 
+
+```
+ - kubectl apply -f deployment.yaml
+```
+2. Apply fibonacci-service
+```
+ - kubectl apply -f fibonacci-service.yaml
+```
+3. Retrieve the ip adress of the Load Balancer to access the deployment
+- the base URL to reach deployment consists out of the external ip of the provisioned load balancer and the chosen port of the docker container (8090)
+```
+ - kubectl get services -n fibonacci
+```
+   - e.g. : "http://abc58.eu-central-1.elb.amazonaws.com:8090"
+
+4. edit k6 Testscript and fill in the correct base URL 
+
+
+### Provision Kubernetes Autoscaling
+
+1. Deploy Metrics Server (necessary for Kubernetes Autoscaling)
+### HPA
+https://docs.aws.amazon.com/eks/latest/userguide/horizontal-pod-autoscaler.html
+### VPA
+https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler
+### CA
+https://github.com/kubernetes/autoscaler/blob/master/cluster-autoscaler/cloudprovider/aws/README.md
 
    Uninstall recources:
+- everything not provisioned with the terraform files (manually installed pods, services etc.) has to get deleted manually in order for the terraform destroy (GitLab CI) to work correctly 
+- easiest way is to use namespaces for manual provisioning and delete the namespaces afterwards
+e.g. :
+```
 - helm uninstall prometheus --namespace prometheus
 - kubectl delete ns prometheus
+```
 
-- helm uninstall grafana --namespace grafana
+```
 - kubectl delete ns grafana
+```
