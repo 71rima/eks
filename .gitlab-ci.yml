@@ -21,8 +21,6 @@ stages
   - validate
   - plan
   - build
-  - add1
-  - add2
   - destroy
 
 validate
@@ -49,58 +47,6 @@ apply
     - plan
   when manual
 
-
-addPrometheusGrafana
-  stage add1
-  image dtzarhelm-kubectl
-  before_script
-    - echo
-    - apk add --no-cache curl jq python3 py3-pip
-    - pip install awscli
-    - aws configure set aws_access_key_id $AWS_ACCESS_KEY_ID
-    - aws configure set aws_secret_access_key $AWS_SECRET_ACCESS_KEY
-    - aws configure set region $AWS_DEFAULT_REGION   
-  script
-  ##kubeconfig updaten + anderes image mit helm und kubectl
-    - aws --version
-    - aws eks --region eu-central-1 update-kubeconfig --name btEKS
-    - kubectl create namespace prometheus
-    - helm repo add prometheus-community httpsprometheus-community.github.iohelm-charts
-    - helm install prometheus prometheus-communityprometheus --namespace prometheus --set alertmanager.persistentVolume.storageClass=gp2 --set server.persistentVolume.storageClass=gp2
-    - kubectl get all -n prometheus #
-    - kubectl port-forward -n prometheus deployprometheus-server 80809090 #Navigate to httplocalhost8080targets
-    - kubectl create namespace grafana
-    - helm install grafana grafanagrafana --namespace grafana --set persistence.storageClassName=gp2 --set persistence.enabled=true --set adminPassword='EKS!sAWSome' --values ${HOME}environmentgrafanagrafana.yaml --set service.type=LoadBalancer
-    - kubectl get all -n grafana
-    - export ELB=$(kubectl get svc -n grafana grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-    - echo http$ELB
-  dependencies
-    - apply
-  when manual
-
-addPrometheusGrafana
-  stage add2
-  image dtzarhelm-kubectl
-  before_script
-    - echo
-  script
-  ##kubeconfig updaten + anderes image mit helm und kubectl
-    - aws eks --region eu-central-1 update-kubeconfig --name btEKS
-    - kubectl create namespace prometheus
-    - helm repo add prometheus-community httpsprometheus-community.github.iohelm-charts
-    - helm install prometheus prometheus-communityprometheus --namespace prometheus --set alertmanager.persistentVolume.storageClass=gp2 --set server.persistentVolume.storageClass=gp2
-    - kubectl get all -n prometheus #
-    - kubectl port-forward -n prometheus deployprometheus-server 80809090 #Navigate to httplocalhost8080targets
-    - kubectl create namespace grafana
-    - helm install grafana grafanagrafana --namespace grafana --set persistence.storageClassName=gp2 --set persistence.enabled=true --set adminPassword='EKS!sAWSome' --values ${HOME}environmentgrafanagrafana.yaml --set service.type=LoadBalancer
-    - kubectl get all -n grafana
-    - export ELB=$(kubectl get svc -n grafana grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
-    - echo http$ELB
-  dependencies
-    - apply
-  when manual
-  
-    
 destroy
   stage destroy
   script

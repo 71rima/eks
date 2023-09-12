@@ -1,4 +1,6 @@
-   
+0.1 Grant GitLab (CI/CD) permissions (IAM) to access AWS EKS : Configure OIDC (e.g. https://oblcc.com/blog/configure-openid-connect-for-gitlab-and-aws/
+)
+0.2
    
    
    
@@ -14,14 +16,28 @@
 3. manually install prometheus and grafana instances on eks cluster (using helm)
 
     - kubectl create namespace prometheus
-    - helm repo add prometheus-community httpsprometheus-community.github.iohelm-charts
-    - helm install prometheus prometheus-communityprometheus --namespace prometheus --set alertmanager.persistentVolume.storageClass=gp2 --set server.persistentVolume.storageClass=gp2
+    - helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    - helm install prometheus prometheus-community/prometheus --namespace prometheus --set alertmanager.persistentVolume.storageClass="gp2" --set server.persistentVolume.storageClass="gp2"
     - kubectl get all -n prometheus #
-    - kubectl port-forward -n prometheus deployprometheus-server 80809090 #Navigate to httplocalhost8080targets
-    - kubectl create namespace grafana
-    - helm install grafana grafanagrafana --namespace grafana --set persistence.storageClassName=gp2 --set persistence.enabled=true --set adminPassword='EKS!sAWSome' --values ${HOME}environmentgrafanagrafana.yaml --set service.type=LoadBalancer
-    - kubectl get all -n grafana
+    - kubectl port-forward -n prometheus deploy/prometheus-server 8080:9090 #Navigate to http://localhost:8080/targets/
 
-    4. Retrieve the ip adress of the Load Balancer to access service
+    - kubectl create namespace grafana
+    - helm search hub grafana
+    - helm repo add grafana https://grafana.github.io/helm-charts
+    - helm repo update
+    - helm install my-release grafana/grafana --namespace grafana --set persistence.storageClassName="gp2" --set persistence.enabled=true --set adminPassword='EKS' --values grafana.yaml --set service.type=LoadBalancer
+    - kubectl get all -n grafana
+    - export ELB=$(kubectl get svc -n grafana grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+    - echo "http://$ELB" #URL of Grafana Instance that is hosted on ELB IP
+
+    4. Retrieve the ip adress of the Load Balancer to access grafana
     - export ELB=$(kubectl get svc -n grafana grafana -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
     - echo http$ELB
+
+
+   Uninstall recources:
+- helm uninstall prometheus --namespace prometheus
+- kubectl delete ns prometheus
+
+- helm uninstall grafana --namespace grafana
+- kubectl delete ns grafana
