@@ -7,8 +7,7 @@ locals {
 
 ### CRDS ###
 data "http" "alb_crds" {
-  url = "https://raw.githubusercontent.com/aws/eks-charts
-  /master/stable/aws-load-balancer-controller/crds/crds.yaml"
+  url = "https://raw.githubusercontent.com/aws/eks-charts/master/stable/aws-load-balancer-controller/crds/crds.yaml"
   
   request_headers = {
     Accept = "application/yaml,text/plain"
@@ -28,9 +27,7 @@ resource "kubectl_manifest" "alb_crds" {
 ### iam ###
 # Policy
 data "http" "alb_iam" {
-  url = "https://raw.githubusercontent.com/kubernetes-sigs/aws-
-  load-balancer-controller/${local.alb_controller_version}/docs/
-  install/iam_policy.json"
+  url = "https://raw.githubusercontent.com/kubernetes-sigs/aws-load-balancer-controller/${local.alb_controller_version}/docs/install/iam_policy.json"
 
   request_headers = {
     Accept = "application/yaml,text/plain"
@@ -57,13 +54,9 @@ data "aws_iam_policy_document" "alb_ingress_assume" {
 
     condition {
       test     = "StringEquals"
-      variable = "${replace(module.eks.cluster_oidc_issuer_url, 
-      "https://", "")}:sub"
+      variable = "${replace(module.eks.cluster_oidc_issuer_url, "https://", "")}:sub"
 
-      values = [
-        "system:serviceaccount:${local.alb_namespace_name}:
-        ${local.alb_controller_name}",
-      ]
+      values = ["system:serviceaccount:${local.alb_namespace_name}:${local.alb_controller_name}",]
     }
 
     effect = "Allow"
@@ -72,8 +65,7 @@ data "aws_iam_policy_document" "alb_ingress_assume" {
 
 resource "aws_iam_role" "alb_ingress" {
   name               = "${local.cluster_name}-alb-ingress"
-  assume_role_policy = data.aws_iam_policy_document.
-  alb_ingress_assume.json
+  assume_role_policy = data.aws_iam_policy_document.alb_ingress_assume.json
 }
 
 resource "aws_iam_role_policy_attachment" "alb_ingress" {
@@ -98,8 +90,7 @@ resource "helm_release" "alb_ingress" {
 
   set {
     name  = "image.repository"
-    value = "602401143452.dkr.ecr.eu-central-1.amazonaws.com
-    /amazon/aws-load-balancer-controller" //eu central repository
+    value = "602401143452.dkr.ecr.eu-central-1.amazonaws.com/amazon/aws-load-balancer-controller" //eu central repository
   }
 
   set {
@@ -118,8 +109,7 @@ resource "helm_release" "alb_ingress" {
   }
 
   set {
-    name  = "serviceAccount.annotations.eks\\.amazonaws\\.
-    com/role-arn"
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
     value = aws_iam_role.alb_ingress.arn
   }
 
